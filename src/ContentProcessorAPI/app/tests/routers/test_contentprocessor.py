@@ -104,6 +104,18 @@ def test_get_status_failed(mock_get_status, mock_get_app_config, app_config):
 
 @patch("app.routers.contentprocessor.get_app_config")
 @patch("app.routers.contentprocessor.CosmosContentProcess.get_status_from_cosmos")
+def test_get_status_error(mock_get_status, mock_get_app_config, app_config):
+    mock_get_app_config.return_value = app_config
+    mock_get_status.return_value = MagicMock(status="Error")
+
+    response = client.get("/contentprocessor/status/test_process_id")
+    assert response.status_code == 500
+    assert response.json()["status"] == "failed"
+    assert "has failed" in response.json()["message"]
+
+
+@patch("app.routers.contentprocessor.get_app_config")
+@patch("app.routers.contentprocessor.CosmosContentProcess.get_status_from_cosmos")
 def test_get_process(mock_get_status, mock_get_app_config, app_config):
     mock_get_app_config.return_value = app_config
     mock_get_status.return_value = MagicMock(
@@ -123,6 +135,11 @@ def test_get_process(mock_get_status, mock_get_app_config, app_config):
             "ContentType": "content_type",
         },
         comment="test comment",
+        source_metadata={},
+        field_confidence={},
+        validation_issues=[],
+        section_completeness={},
+        schema_version="patient_record_v1",
     )
 
     response = client.get("/contentprocessor/processed/test_process_id")

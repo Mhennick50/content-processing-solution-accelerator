@@ -1,213 +1,159 @@
+@url = "https://ca-cliniqeckvo-api.lemonforest-208f0ef4.eastus2.azurecontainerapps.io"
 
-@url = "http://localhost:8000"
-@port = "8000"
 #######################
-# Variables
+# Container App Health Checks
 #######################
-#@service_url = "https://cps-processorapi.gentleforest-27265674.eastus2.azurecontainerapps.io"
 
-####################
-# Container App - Startup, liveness, health check probe api
-####################
-GET http://localhost:8000/startup
+GET {{url}}/startup
 
 #############################
 # Get All Registered Schemas
-##############################
-GET http://localhost:8000/schemavault/ HTTP/1.1
+#############################
+
+GET {{url}}/schemavault/
 
 #########################################
-# Register Schema file with information
+# Register ClinIQ Patient Record Schema
 #########################################
-POST http://localhost:8000/schemavault/ HTTP/1.1
+
+POST {{url}}/schemavault/
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
 
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="file"; filename="realestatecontract.py"
+Content-Disposition: form-data; name="file"; filename="patient_record.py"
 Content-Type: text/x-python
 
-< ../samples/realestatecontract.py
+< ../samples/schemas/patient_record.py
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
 Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
 {
-  "ClassName": "RealEstateContract",
-  "Description": "RealEstateContract Schema"
+  "ClassName": "PatientRecord",
+  "Description": "ClinIQ Patient Record Schema v1"
 }
 
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 ##########################################
-# Update Schema file with information
+# Update Schema (only needed later)
 ##########################################
-PUT http://localhost:8000/schemavault/ HTTP/1.1
+
+PUT {{url}}/schemavault/
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
 
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="file"; filename="propertyclaim.py"
+Content-Disposition: form-data; name="file"; filename="patient_record.py"
 Content-Type: text/x-python
 
-< ../samples/schemas/propertyclaim.py
+< ../samples/schemas/patient_record.py
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
 Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
 {
-  "SchemaId": "8b61565b-6951-443d-9b55-a032b42081e1",
-  "ClassName": "PropertyLossDamageClaimForm"
+  "SchemaId": "PASTE_SCHEMA_ID_HERE",
+  "ClassName": "PatientRecord"
 }
 
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 ########################################
-# Get Schema file by ID
+# Get Schema by ID
 ########################################
 
-GET http://localhost:8000/schemavault/schemas/ed53f68c-ba59-411a-8f13-fa4c173663cb
+GET {{url}}/schemavault/schemas/PASTE_SCHEMA_ID_HERE
 
 ########################################
-# Delete Schema file by ID
+# Delete Schema
 ########################################
 
-DELETE http://localhost:8000/schemavault/ HTTP/1.1
+DELETE {{url}}/schemavault/
 Content-Type: application/json
 
 {
-  "SchemaId": "646832ce-477d-44fb-861b-69432b738f68"
+  "SchemaId": "PASTE_SCHEMA_ID_HERE"
 }
 
 #################################
-# Upload File for processing
+# Upload Patient Record PDF
 #################################
-POST http://localhost:8000/contentprocessor/submit HTTP/1.1
+
+POST {{url}}/contentprocessor/submit
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
 
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="file"; filename="inv.bmp"
-Content-Type: image/bmp
+Content-Disposition: form-data; name="file"; filename="patient_record.pdf"
+Content-Type: application/pdf
 
-< ../samples/invoices/inv.bmp
+< ../samples/patient_records/patient_record.pdf
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
 Content-Disposition: form-data; name="data"
 Content-Type: application/json
 
 {
-  "Metadata_Id": "Meta 001",
-  "Schema_Id": "abdd6744-b794-42fa-92c9-e517160f671d"
+  "Metadata_Id": "ClinIQ_Test_001",
+  "Schema_Id": "PASTE_SCHEMA_ID_HERE"
 }
 
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
-
 #################################
-# Get Status of processing
+# Get Processing Status
 #################################
-GET http://localhost:8000/contentprocessor/status/1a7886d1-5766-406a-b14f-26c08dd1e7cf HTTP/1.1
 
+GET {{url}}/contentprocessor/status/PASTE_PROCESS_ID_HERE
 
 #################################
 # Get Processed Data
 #################################
-GET http://localhost:8000/contentprocessor/processed/bef078e4-b8cf-4288-ab13-035bf0592040 HTTP/1.1
+
+GET {{url}}/contentprocessor/processed/PASTE_PROCESS_ID_HERE
 
 #################################
-# Get Processed Step Data
+# Get Processing Steps
 #################################
-GET http://localhost:8000/contentprocessor/processed/34af490c-f27c-4c04-83e8-5747c6e4a33d/steps HTTP/1.1
 
+GET {{url}}/contentprocessor/processed/PASTE_PROCESS_ID_HERE/steps
 
+#################################
+# Download Original File
+#################################
 
-###############################
-# Download Origital file
-###############################
-GET http://localhost:8000/contentprocessor/processed/files/7b543f0e-3535-4566-baec-0f20ad06f4dc HTTP/1.1
-
+GET {{url}}/contentprocessor/processed/files/PASTE_FILE_ID_HERE
 
 #################################
 # Get All Processed Data
 #################################
-POST http://localhost:8000/contentprocessor/processed HTTP/1.1
+
+POST {{url}}/contentprocessor/processed
 Content-Type: application/json
 
 {
-  "page_size" : 20,
-  "page_number" : 1
+  "page_size": 20,
+  "page_number": 1
 }
 
 #################################
-# Add Comment on Processed Result
+# Add Comment on Result
 #################################
-PUT http://localhost:8000/contentprocessor/processed/e8b7af31-1033-42cf-b7c4-c3d2f27a59d7 HTTP/1.1
+
+PUT {{url}}/contentprocessor/processed/PASTE_PROCESS_ID_HERE
 Content-Type: application/json
 
 {
-  "process_id" : "e8b7af31-1033-42cf-b7c4-c3d2f27a59d7",
-  "comment" : "Good morning Brittnee!"
+  "process_id": "PASTE_PROCESS_ID_HERE",
+  "comment": "ClinIQ Review Comment"
 }
 
 #################################
 # Modify Processed Result
 #################################
-PUT http://localhost:8000/contentprocessor/processed/e8b7af31-1033-42cf-b7c4-c3d2f27a59d7 HTTP/1.1
+
+PUT {{url}}/contentprocessor/processed/PASTE_PROCESS_ID_HERE
 Content-Type: application/json
 
 {
-  "process_id" : "e8b7af31-1033-42cf-b7c4-c3d2f27a59d7",
-  "modified_result" : {
-    "customer_name": "Brittnee Co. LTD",
-    "customer_address": {
-      "street": "PUSHPARAJ CHOWK",
-      "city": "SANGLI",
-      "state": "Maharashtra",
-      "postal_code": null,
-      "country": "India"
-    },
-    "customer_tax_id": "27AAFCA0924K1ZR",
-    "shipping_address": null,
-    "purchase_order": null,
-    "invoice_id": "GTI5153",
-    "invoice_date": "2019-02-27",
-    "payable_by": "2019-03-18",
-    "vendor_name": "DILIP TYRES",
-    "vendor_address": {
-      "street": "PUSHPARAJ CHOWK",
-      "city": "SANGLI",
-      "state": "Maharashtra",
-      "postal_code": null,
-      "country": "India"
-    },
-    "vendor_tax_id": "27AAEPH8682F1ZI",
-    "remittance_address": null,
-    "subtotal": 2287.5,
-    "total_discount": 0.0,
-    "total_tax": 640.5,
-    "invoice_total": 2928.0,
-    "payment_terms": "Net 20",
-    "items": [
-      {
-        "product_code": "40111090",
-        "description": "165.80R/14 ASSURANCE DP T/L TYRES",
-        "quantity": 1,
-        "tax": 640.5,
-        "tax_rate": "14%",
-        "unit_price": 2287.5,
-        "total": 2928.0,
-        "reason": null
-      }
-    ],
-    "total_item_quantity": 1.0,
-    "items_customer_signature": {
-      "signatory": null,
-      "is_signed": null
-    },
-    "items_vendor_signature": {
-      "signatory": "Authorised Signatory",
-      "is_signed": true
-    },
-    "returns": null,
-    "total_return_quantity": 0.0,
-    "returns_customer_signature": null,
-    "returns_vendor_signature": null
-  }
+  "process_id": "PASTE_PROCESS_ID_HERE",
+  "modified_result": {}
 }
