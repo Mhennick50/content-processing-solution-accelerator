@@ -114,8 +114,11 @@ class Schemas(BaseModel):
         arbitrary_types_allowed = True
 
 
-schemas = Schemas()
+schemas: Schemas | None = None
 
 
 def get_schemas() -> Schemas:
+    global schemas
+    if schemas is None:
+        schemas = Schemas()
     return schemas

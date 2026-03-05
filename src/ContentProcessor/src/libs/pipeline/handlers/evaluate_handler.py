@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 import json
+import logging
 
 from libs.application.application_context import AppContext
 from libs.azure_helper.model.content_understanding import AnalyzedResult
@@ -31,17 +32,6 @@ class EvaluateHandler(HandlerBase):
     async def execute(self, context: MessageContext) -> StepResult:
         print(context.data_pipeline.get_previous_step_result(self.handler_name))
 
-        # Get the result from Extract step
-        output_file_json_string_from_extract = self.download_output_file_to_json_string(
-            processed_by="extract",
-            artifact_type=ArtifactType.ExtractedContent,
-        )
-
-        # Deserialize the result to AnalyzedResult (Content Understanding)
-        content_understanding_result = AnalyzedResult(
-            **json.loads(output_file_json_string_from_extract)
-        )
-
         # Get the result from Map step handler - Azure AI Foundry
         output_file_json_string_from_map = self.download_output_file_to_json_string(
             processed_by="map",
@@ -57,10 +47,9 @@ class EvaluateHandler(HandlerBase):
         # Convert the parsed message to a dictionary
         gpt_evaluate_confidence_dict = parsed_message_from_gpt
 
-        # Evaluate Confidence Score - Content Understanding
-        content_understanding_confidence_score = content_understanding_confidence(
-            gpt_evaluate_confidence_dict,
-            content_understanding_result.result.contents[0],
+        cliniq_mode = (
+            self.application_context.configuration.app_pipeline_mode
+            == "cliniq_singlepass"
         )
 
         # Evaluate Confidence Score - GPT
@@ -68,10 +57,33 @@ class EvaluateHandler(HandlerBase):
             gpt_evaluate_confidence_dict, gpt_result["choices"][0]
         )
 
-        # Merge the confidence scores - Content Understanding and GPT results.
-        merged_confidence_score = merge_confidence_values(
-            content_understanding_confidence_score, gpt_confidence_score
-        )
+        validation_issues = gpt_result.get("validation_issues", [])
+        section_completeness = gpt_result.get("section_completeness", {})
+        schema_version = gpt_result.get("schema_version", "v1")
+
+        if cliniq_mode:
+            deterministic_confidence = self._deterministic_confidence(
+                gpt_evaluate_confidence_dict
+            )
+            merged_confidence_score = merge_confidence_values(
+                deterministic_confidence, gpt_confidence_score
+            )
+        else:
+            # Legacy mode still merges with Content Understanding confidence.
+            output_file_json_string_from_extract = self.download_output_file_to_json_string(
+                processed_by="extract",
+                artifact_type=ArtifactType.ExtractedContent,
+            )
+            content_understanding_result = AnalyzedResult(
+                **json.loads(output_file_json_string_from_extract)
+            )
+            content_understanding_confidence_score = content_understanding_confidence(
+                gpt_evaluate_confidence_dict,
+                content_understanding_result.result.contents[0],
+            )
+            merged_confidence_score = merge_confidence_values(
+                content_understanding_confidence_score, gpt_confidence_score
+            )
 
         # Flatten extracted data and confidence score
         result_data = get_extraction_comparison_data(
@@ -88,6 +100,18 @@ class EvaluateHandler(HandlerBase):
             prompt_tokens=gpt_result["usage"]["prompt_tokens"],
             completion_tokens=gpt_result["usage"]["completion_tokens"],
             execution_time=0,
+            field_confidence=merged_confidence_score,
+            validation_issues=validation_issues,
+            section_completeness=section_completeness,
+            schema_version=schema_version,
+        )
+        logging.info(
+            "evaluate_handler completed",
+            extra={
+                "process_id": context.data_pipeline.pipeline_status.process_id,
+                "pipeline_mode": self.application_context.configuration.app_pipeline_mode,
+                "validation_issue_count": len(validation_issues),
+            },
         )
 
         # Save Result as a file
@@ -114,3 +138,17 @@ class EvaluateHandler(HandlerBase):
             step_name=self.handler_name,
             result={"result": "success", "file_name": result_file.name},
         )
+
+    def _deterministic_confidence(self, payload: dict):
+        def build(value):
+            if isinstance(value, dict):
+                return {k: build(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [build(item) for item in value]
+            is_present = value not in (None, "", "ND")
+            return {
+                "confidence": 1.0 if is_present else 0.0,
+                "value": value,
+            }
+
+        return build(payload)

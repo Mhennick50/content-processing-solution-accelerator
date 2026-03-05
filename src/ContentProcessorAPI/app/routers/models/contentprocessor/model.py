@@ -12,6 +12,11 @@ from pydantic import BaseModel, Field, model_validator
 class ContentProcessorRequest(BaseModel):
     Metadata_Id: str
     Schema_Id: str
+    tenant_id: Optional[str] = None
+    encounter_id: Optional[str] = None
+    source_system_ref: Optional[str] = None
+    discipline: Optional[str] = None
+    specialty_profile: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -80,6 +85,7 @@ class Status(BaseModel):
     process_id: str
     schema_id: str
     metadata_id: str
+    metadata: Optional[dict] = None
 
     completed: Optional[bool] = Field(default=False)
     creation_time: datetime

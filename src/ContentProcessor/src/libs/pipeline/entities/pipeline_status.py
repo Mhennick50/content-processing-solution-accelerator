@@ -15,6 +15,7 @@ class PipelineStatus(PipelineMessageBase):
     completed: bool = Field(default=False, alias="Completed")
     process_id: Optional[str] = Field(default=None, alias="ProcessId")
     metadata_id: Optional[str] = Field(default=None, alias="MetadataId")
+    metadata: Optional[dict] = Field(default=None, alias="Metadata")
     schema_id: Optional[str] = Field(default=None, alias="SchemaId")
     creation_time: Optional[str] = Field(default=None, alias="CreationTime")
     last_updated_time: Optional[str] = Field(default=None, alias="LastUpdateTime")

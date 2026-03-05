@@ -54,10 +54,13 @@ class AppConfiguration(ModelBaseSettings):
     app_cosmos_database: str
     app_cosmos_container_process: str
     app_cosmos_container_schema: str
+    app_pipeline_mode: str = "legacy"
+    app_cliniq_schema_id: str = ""
+    app_prompt_version: str = "v1"
 
     @field_validator("app_process_steps", mode="before")
     @classmethod
     def split_processes(cls, v: str) -> list[str]:
         if isinstance(v, str):
-            return [x for x in v.split(",")]
+            return [x.strip() for x in v.split(",") if x.strip()]
         return v

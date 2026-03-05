@@ -201,6 +201,8 @@ class HandlerBase(AppModelBase, ABC):
                             result={
                                 "result": "error",
                                 "error": self._current_message_context.data_pipeline.pipeline_status.exception.model_dump_json(),
+                                "metadata": self._current_message_context.data_pipeline.pipeline_status.metadata
+                                or {},
                             },
                         )
 
@@ -291,6 +293,8 @@ class HandlerBase(AppModelBase, ABC):
                                 result={
                                     "result": "moved to Dead Letter Queue",
                                     "error": self._current_message_context.data_pipeline.pipeline_status.exception.model_dump_json(),
+                                    "metadata": self._current_message_context.data_pipeline.pipeline_status.metadata
+                                    or {},
                                 },
                             )
 

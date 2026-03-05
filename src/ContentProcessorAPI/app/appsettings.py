@@ -5,7 +5,10 @@ import logging
 import os
 
 from dotenv import load_dotenv
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import NoDecode
+from typing_extensions import Annotated
 
 from app.libs.app_configuration.helper import AppConfigurationHelper
 
@@ -15,23 +18,32 @@ class ModelBaseSettings(BaseSettings):
 
 
 class EnvConfiguration(ModelBaseSettings):
-    app_config_endpoint: str
+    app_config_endpoint: str = ""
 
 
 class AppConfiguration(ModelBaseSettings):
-    app_storage_blob_url: str
-    app_storage_queue_url: str
-    app_cosmos_connstr: str
-    app_cosmos_database: str
-    app_cosmos_container_schema: str
-    app_cosmos_container_process: str
-    app_cps_configuration: str
-    app_cps_processes: str
-    app_message_queue_extract: str
-    app_cps_max_filesize_mb: int
-    app_logging_level: str
-    azure_package_logging_level: str
-    azure_logging_packages: str
+    app_storage_blob_url: str = ""
+    app_storage_queue_url: str = ""
+    app_cosmos_connstr: str = ""
+    app_cosmos_database: str = "ContentProcess"
+    app_cosmos_container_schema: str = "Schemas"
+    app_cosmos_container_process: str = "Processes"
+    app_cps_configuration: str = "cps-configuration"
+    app_cps_processes: str = "cps-processes"
+    app_message_queue_extract: str = "content-pipeline-extract-queue"
+    app_cps_max_filesize_mb: int = 20
+    app_logging_level: str = "INFO"
+    azure_package_logging_level: str = "WARNING"
+    azure_logging_packages: str = "azure"
+    app_pipeline_mode: str = "legacy"
+    app_process_steps: Annotated[list[str], NoDecode] = ["extract", "map", "evaluate", "save"]
+
+    @field_validator("app_process_steps", mode="before")
+    @classmethod
+    def split_processes(cls, v: str) -> list[str]:
+        if isinstance(v, str):
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v
 
 
 # Read .env file
@@ -39,10 +51,16 @@ class AppConfiguration(ModelBaseSettings):
 env_file_path = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(env_file_path)
 
+def _is_local_test_mode() -> bool:
+    val = os.getenv("APP_LOCAL_TEST_MODE", "").strip().lower()
+    return val in {"1", "true", "yes"} or "PYTEST_CURRENT_TEST" in os.environ
+
+
 # Get App Configuration
 env_config = EnvConfiguration()
-app_helper = AppConfigurationHelper(env_config.app_config_endpoint)
-app_helper.read_and_set_environmental_variables()
+if env_config.app_config_endpoint and not _is_local_test_mode():
+    app_helper = AppConfigurationHelper(env_config.app_config_endpoint)
+    app_helper.read_and_set_environmental_variables()
 
 app_config = AppConfiguration()
 

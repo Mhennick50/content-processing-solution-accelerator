@@ -31,6 +31,10 @@ class DataExtractionResult(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     execution_time: int
+    field_confidence: Optional[dict] = None
+    validation_issues: Optional[list[str]] = None
+    section_completeness: Optional[dict] = None
+    schema_version: Optional[str] = None
 
     def to_json(self, indent: Optional[int] = 4) -> str:
         """

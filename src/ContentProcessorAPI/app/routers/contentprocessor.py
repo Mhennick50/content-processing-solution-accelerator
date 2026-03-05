@@ -111,6 +111,25 @@ async def Submit_File_With_MetaData(
     content_processor: ContentProcessor = Depends(get_content_processor),
     app_config: AppConfiguration = Depends(get_app_config),
 ):
+    # Choose active step list based on mode while keeping legacy fallback.
+    app_steps = app_config.app_process_steps or [
+        Steps.Extract,
+        Steps.Mapping,
+        Steps.Evaluating,
+        Steps.Save,
+    ]
+    if app_config.app_pipeline_mode == "cliniq_singlepass":
+        app_steps = [Steps.Mapping, Steps.Evaluating, Steps.Save]
+
+    metadata = {
+        "tenant_id": data.tenant_id,
+        "encounter_id": data.encounter_id,
+        "source_system_ref": data.source_system_ref,
+        "discipline": data.discipline,
+        "specialty_profile": data.specialty_profile,
+    }
+    metadata = {k: v for k, v in metadata.items() if v is not None}
+
     # Save the uploaded file
     # 1. Check Mime Type and Validate whether file is supported - Should be pdf or image files
     if file.content_type not in [
@@ -167,19 +186,10 @@ async def Submit_File_With_MetaData(
                     "process_id": process_id,
                     "schema_id": data.Schema_Id,
                     "metadata_id": data.Metadata_Id,
+                    "metadata": metadata,
                     "creation_time": datetime.datetime.now(datetime.timezone.utc),
-                    "steps": [
-                        Steps.Extract,
-                        Steps.Mapping,
-                        Steps.Evaluating,
-                        Steps.Save,
-                    ],
-                    "remaining_steps": [
-                        Steps.Extract,
-                        Steps.Mapping,
-                        Steps.Evaluating,
-                        Steps.Save,
-                    ],
+                    "steps": app_steps,
+                    "remaining_steps": app_steps,
                     "completed_steps": [],
                 }
             ),
@@ -253,16 +263,16 @@ async def get_status(
             },
         )
 
-    if process_status.status == "Completed":
+    if process_status.status and process_status.status.lower() == "completed":
         return JSONResponse(
             status_code=302,
             content={
                 "status": "completed",
                 "message": f"Processing of file with Process ID '{process_id}' is completed.",
-                "resource_url": f"/contentprocessor/processes/{process_id}",
+                "resource_url": f"/contentprocessor/processed/{process_id}",
             },
         )
-    elif process_status == "Error":
+    elif process_status.status and process_status.status.lower() == "error":
         return JSONResponse(
             status_code=500,
             content={

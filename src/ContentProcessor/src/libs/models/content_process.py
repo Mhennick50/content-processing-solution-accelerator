@@ -44,6 +44,13 @@ class ContentProcess(BaseModel):
     extracted_comparison_data: Optional[ExtractionComparisonData] = None
 
     comment: Optional[str] = None
+    source_metadata: Optional[dict] = None
+    field_confidence: Optional[dict] = None
+    validation_issues: Optional[list[str]] = None
+    section_completeness: Optional[dict] = None
+    schema_version: Optional[str] = None
+    cliniq_template_key: Optional[str] = None
+    raw_extracted_result: Optional[dict] = None
 
     def update_process_status_to_cosmos(
         self,

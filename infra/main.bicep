@@ -1330,6 +1330,18 @@ module avmAppConfig 'br/public:avm/res/app-configuration/configuration-store:0.9
         value: 'extract,map,evaluate,save'
       }
       {
+        name: 'APP_PIPELINE_MODE'
+        value: 'legacy'
+      }
+      {
+        name: 'APP_CLINIQ_SCHEMA_ID'
+        value: ''
+      }
+      {
+        name: 'APP_PROMPT_VERSION'
+        value: 'v1'
+      }
+      {
         name: 'APP_STORAGE_BLOB_URL'
         value: avmStorageAccount.outputs.serviceEndpoints.blob
       }

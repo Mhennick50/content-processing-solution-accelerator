@@ -12,6 +12,7 @@ from libs.pipeline.entities.pipeline_step_result import StepResult
 from libs.pipeline.entities.schema import Schema
 from libs.pipeline.handlers.logics.evaluate_handler.model import DataExtractionResult
 from libs.pipeline.queue_handler_base import HandlerBase
+from libs.utils.remote_module_loader import load_schema_from_blob
 
 
 class SaveHandler(HandlerBase):
@@ -20,6 +21,10 @@ class SaveHandler(HandlerBase):
 
     async def execute(self, context: MessageContext) -> StepResult:
         print(context.data_pipeline.get_previous_step_result(self.handler_name))
+        cliniq_mode = (
+            self.application_context.configuration.app_pipeline_mode
+            == "cliniq_singlepass"
+        )
 
         # #########################################################
         # # TODO : Save Step Result to Blob Storage
@@ -46,10 +51,12 @@ class SaveHandler(HandlerBase):
         #########################################################
         # Get Results from All Steps - Content Understanding
         #########################################################
-        output_file_json_string_from_extract = self.download_output_file_to_json_string(
-            processed_by="extract",
-            artifact_type=ArtifactType.ExtractedContent,
-        )
+        output_file_json_string_from_extract = None
+        if not cliniq_mode:
+            output_file_json_string_from_extract = self.download_output_file_to_json_string(
+                processed_by="extract",
+                artifact_type=ArtifactType.ExtractedContent,
+            )
 
         ####################################################
         # Get the result from Map step handler - OpenAI
@@ -87,13 +94,14 @@ class SaveHandler(HandlerBase):
             )
 
         process_outputs: list[Step_Outputs] = []
-        process_outputs.append(
-            Step_Outputs(
-                step_name="extract",
-                processed_time=find_process_result("extract").elapsed,
-                step_result=json.loads(output_file_json_string_from_extract),
+        if output_file_json_string_from_extract is not None:
+            process_outputs.append(
+                Step_Outputs(
+                    step_name="extract",
+                    processed_time=find_process_result("extract").elapsed,
+                    step_result=json.loads(output_file_json_string_from_extract),
+                )
             )
-        )
         process_outputs.append(
             Step_Outputs(
                 step_name="map",
@@ -114,7 +122,7 @@ class SaveHandler(HandlerBase):
         )
         schema_score = (
             0
-            if total_evaluated_fields_count == 0
+            if total_evaluated_fields_count == 0 or len(evaluated_result.comparison_result.items) == 0
             else round(
                 (
                     len(evaluated_result.comparison_result.items)
@@ -125,9 +133,36 @@ class SaveHandler(HandlerBase):
             )
         )
 
+        # Build ClinIQ-facing payload (discipline-aware template data) when schema supports it.
+        selected_schema = Schema.get_schema(
+            schema_id=context.data_pipeline.pipeline_status.schema_id,
+            connection_string=self.application_context.configuration.app_cosmos_connstr,
+            database_name=self.application_context.configuration.app_cosmos_database,
+            collection_name=self.application_context.configuration.app_cosmos_container_schema,
+        )
+        schema_class = load_schema_from_blob(
+            account_url=self.application_context.configuration.app_storage_blob_url,
+            container_name=f"{self.application_context.configuration.app_cps_configuration}/Schemas/{context.data_pipeline.pipeline_status.schema_id}",
+            blob_name=selected_schema.FileName,
+            module_name=selected_schema.ClassName,
+        )
+        cliniq_payload = evaluated_result.extracted_result
+        cliniq_template_key = None
+        if hasattr(schema_class, "to_cliniq_payload"):
+            cliniq_payload = schema_class.to_cliniq_payload(
+                evaluated_result.extracted_result,
+                context.data_pipeline.pipeline_status.metadata or {},
+            )
+            cliniq_template_key = cliniq_payload.get("template_key")
+        elif hasattr(schema_class, "resolve_template_key"):
+            cliniq_template_key = schema_class.resolve_template_key(
+                evaluated_result.extracted_result
+            )
+
         processed_result = ContentProcess(
             status=context.data_pipeline.pipeline_status.active_step,
-            result=evaluated_result.extracted_result,
+            result=cliniq_payload,
+            raw_extracted_result=evaluated_result.extracted_result,
             process_id=context.data_pipeline.pipeline_status.process_id,
             processed_file_name=context.data_pipeline.get_source_files()[0].name,
             processed_file_mime_type=context.data_pipeline.get_source_files()[
@@ -147,16 +182,17 @@ class SaveHandler(HandlerBase):
             ],
             prompt_tokens=evaluated_result.prompt_tokens,
             completion_tokens=evaluated_result.completion_tokens,
-            target_schema=Schema.get_schema(
-                schema_id=context.data_pipeline.pipeline_status.schema_id,
-                connection_string=self.application_context.configuration.app_cosmos_connstr,
-                database_name=self.application_context.configuration.app_cosmos_database,
-                collection_name=self.application_context.configuration.app_cosmos_container_schema,
-            ),
+            target_schema=selected_schema,
             confidence=evaluated_result.confidence,
+            field_confidence=evaluated_result.field_confidence,
+            validation_issues=evaluated_result.validation_issues,
+            section_completeness=evaluated_result.section_completeness,
+            schema_version=evaluated_result.schema_version,
+            cliniq_template_key=cliniq_template_key,
             # process_output=process_outputs, # Mongo Document Size Limit, can't ship this result.
             extracted_comparison_data=evaluated_result.comparison_result,
             comment="",
+            source_metadata=context.data_pipeline.pipeline_status.metadata or {},
         )
 
         # Save Result to Cosmos DB
